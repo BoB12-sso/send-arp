@@ -28,6 +28,7 @@ void usage() {
 }
 
 Mac send_arp(const char* vicIp){
+	printf("sent arp request\n");
 	EthArpPacket packet; //arp request packet
 
 	//sender = ma, target = victim
@@ -49,12 +50,14 @@ Mac send_arp(const char* vicIp){
 	packet.arp_.tmac_ = Mac("00:00:00:00:00:00"); //anyting
 	packet.arp_.tip_ = htonl(Ip(vicIp));
 
-	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));	
-
-	while (true) {
-		EthArpPacket cap_packet;
+	while (true){
+		printf("while..\n");
+		const u_char* cap_packet;
 		struct pcap_pkthdr* header;
-		int res = pcap_next_ex(handle, &header, reinterpret_cast<const u_char**>(&cap_packet));
+		
+		int res = pcap_next_ex(handle, &header, &cap_packet);
+		
+		int sent = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
 
 		if (res == 0) continue;
 
@@ -64,17 +67,23 @@ Mac send_arp(const char* vicIp){
 		}
 
 		/*Check ARP Pakcet*/
+		const EthHdr* eth_pkt = reinterpret_cast<const EthHdr*>(&cap_packet);
 		
+		printf("%x %x\n",ntohs(eth_pkt->type_), EthHdr::Arp);
 		//Check ARP Packet -> continue packet capture
-		if(cap_packet.eth_.type()!=EthHdr::Arp) continue;
-
+		if(ntohs(eth_pkt->type_)!=EthHdr::Arp) continue;
+		
+		const ArpHdr* arp_hdr = reinterpret_cast<const ArpHdr*>(&cap_packet);
+		printf("casting\n");
 		//Check reply packet
-		if(cap_packet.arp_.op()!=ArpHdr::Reply) continue;
-
+		printf("op=%x, %d\n", arp_hdr->op(), ArpHdr::Reply);
+		if(arp_hdr->op()!=ArpHdr::Reply) continue;
+		printf("reply\n");
 		//Check correct sender
-		if(cap_packet.arp_.sip()!=htonl(Ip(vicIp))) continue;
-
-		return cap_packet.arp_.smac();
+		if(ntohl(arp_hdr->sip_)!=htonl(Ip(vicIp))) continue;
+		printf("vip\n");
+		return arp_hdr->smac_;
+	
 	}
 	return NULL;
 }
@@ -90,7 +99,7 @@ int main(int argc,	char* argv[]) {
 	char* gateIp = argv[3]; //target ip
 
 	char errbuf[PCAP_ERRBUF_SIZE];
-	handle = pcap_open_live(interf, 0, 0, 0, errbuf);
+	handle = pcap_open_live(interf, BUFSIZ, 1, 1, errbuf);
 	if (handle == nullptr) {
 		fprintf(stderr, "couldn't open device %s(%s)\n", interf, errbuf);
 		return -1;

@@ -21,7 +21,7 @@ struct ArpHdr final {
 	uint16_t pro() { return ntohs(pro_); }
 	uint8_t hln() { return hln_;}
 	uint8_t pln() { return pln_;}
-	uint16_t op() { return ntohs(op_); }
+	uint16_t op() const  { return ntohs(op_); }
 	Mac smac() { return smac_; }
 	Ip sip() { return ntohl(sip_); }
 	Mac tmac() { return tmac_; }
