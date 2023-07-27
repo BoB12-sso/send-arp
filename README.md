@@ -1,14 +1,14 @@
 # send-arp-test
-using arp request/reply
-arp spoofing
+using arp request/reply  
+arp spoofing  
 
 ## Add
-- get_ip
-  get my ip
-get_mac
-- get my mac
+- get_ip  
+  get my ip  
+- get_mac  
+get my mac  
   
-- send_arp (in main.cpp)
+- send_arp (in main.cpp)  
   send normal ARP request victim's ip -> receive victim's mac address
 
 ## Modify
