@@ -17,13 +17,13 @@ struct ArpHdr final {
 	Mac tmac_;
 	Ip tip_;
 
-	uint16_t hrd() { return ntohs(hrd_); }
-	uint16_t pro() { return ntohs(pro_); }
-	uint8_t hln() { return hln_;}
-	uint8_t pln() { return pln_;}
+	uint16_t hrd() const { return ntohs(hrd_); }
+	uint16_t pro() const { return ntohs(pro_); }
+	uint8_t hln() const { return hln_;}
+	uint8_t pln()const  { return pln_;}
 	uint16_t op() const  { return ntohs(op_); }
-	Mac smac() { return smac_; }
-	Ip sip() { return ntohl(sip_); }
+	Mac smac() const { return smac_; }
+	Ip sip() const { return ntohl(sip_); }
 	Mac tmac() { return tmac_; }
 	Ip tip() { return ntohl(tip_); }
 
