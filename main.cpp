@@ -33,7 +33,7 @@ string send_arp(string vicIp){
 
 	//sender = ma, target = victim
 	packet.eth_.smac_ = Mac(myMac);
-	packet.eth_.dmac_ = Mac("FF:FF:FF:FF:FF:FF");
+	packet.eth_.dmac_ = Mac::broadcastMac(); //broadcast mac
 	packet.eth_.type_ = htons(EthHdr::Arp);
 
 	packet.arp_.hrd_ = htons(ArpHdr::ETHER);
@@ -76,10 +76,8 @@ string send_arp(string vicIp){
 		if(arp_hdr->op()!=ArpHdr::Reply) continue;
 
 		//Check correct sender
-		//string s_sip = static_cast<std::string>(arp_hdr->sip());
-		//if(s_sip.compare(vicIp)!=0) continue;
 		if(arp_hdr->sip()==Ip(vicIp)) continue;
-
+		
 		return static_cast<string>(arp_hdr->smac());	
 	}
 	return NULL;
