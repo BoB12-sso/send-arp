@@ -65,11 +65,11 @@ string send_arp(string vicIp){
 			break;
 		}
 
-        const EthArpPacket* eth_arp_pkt = reinterpret_cast<const EthArpPacket*>(cap_packet);
-
+	        const EthArpPacket* eth_arp_pkt = reinterpret_cast<const EthArpPacket*>(cap_packet);
+	
 		//check ARP Packet
-        if (ntohs(eth_arp_pkt->eth_.type_) != EthHdr::Arp) continue;
-	    const ArpHdr* arp_hdr = &(eth_arp_pkt->arp_);
+	        if (ntohs(eth_arp_pkt->eth_.type_) != EthHdr::Arp) continue;
+	    	const ArpHdr* arp_hdr = &(eth_arp_pkt->arp_);
 		//Check reply packet
 		if(arp_hdr->op()!=ArpHdr::Reply) continue;
 		//Check correct sender
