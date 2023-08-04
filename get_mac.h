@@ -2,7 +2,8 @@
 #define get_mac_h
 
 #include <string>
+#include "mac.h"
 
-std::string get_mac(const std::string& interface);
+Mac get_mac(const std::string& interface);
 
 #endif 

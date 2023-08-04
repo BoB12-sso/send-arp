@@ -6,11 +6,13 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 
-std::string get_ip(const std::string& interface) {
+#include "ip.h"
+
+Ip get_ip(const std::string& interface) {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock == -1) {
         std::cerr << "Failed to create socket." << std::endl;
-        return "";
+        return Ip();
     }
 
     struct ifreq ifr;
@@ -20,14 +22,13 @@ std::string get_ip(const std::string& interface) {
     if (ioctl(sock, SIOCGIFADDR, &ifr) == -1) {
         std::cerr << "Failed to get IP address for the interface: " << interface << std::endl;
         close(sock);
-        return "";
+        return Ip();
     }
 
     close(sock);
 
     struct sockaddr_in* addr_in = reinterpret_cast<struct sockaddr_in*>(&ifr.ifr_addr);
-    char ip_address[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &(addr_in->sin_addr), ip_address, INET_ADDRSTRLEN);
 
-    return std::string(ip_address);
+    
+    return Ip(ntohl(addr_in->sin_addr.s_addr));
 }
